@@ -294,7 +294,7 @@ namespace SystemMonitorAgent
                     {
                         used_mb = usedMB,
                         total_mb = totalMB, 
-                        percentage= (usedMB / totalMB) * 100
+                        percentage= 100.0 * usedMB / totalMB
                     };
                 }
             }
