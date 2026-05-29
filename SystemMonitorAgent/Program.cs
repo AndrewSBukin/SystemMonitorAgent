@@ -33,8 +33,6 @@ namespace SystemMonitorAgent
         public static string s_ErrorDuring_Configure = "";
         static void Main(string[] args)
         {
-            // TODO: защититься от повторного запуска
-
             Host.CreateDefaultBuilder(args)
                 .UseWindowsService()
                 .ConfigureServices((context, services) =>
@@ -68,7 +66,6 @@ namespace SystemMonitorAgent
 
         public Logger(AppSettings settings)
         {
-            // TODO: проверить корректность пути
             _logFileName = settings.LogFileName;
             _logDirectory = Path.GetDirectoryName(_logFileName);
             Directory.CreateDirectory(_logDirectory);
@@ -79,7 +76,6 @@ namespace SystemMonitorAgent
 
         public void Log(string message, bool isError = false)
         {
-            // TODO: обработать ошибки
             try
             {
                 if (!string.IsNullOrEmpty(_logDirectory))
@@ -87,7 +83,7 @@ namespace SystemMonitorAgent
                 var logLine = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} - {message}{Environment.NewLine}";
                 File.AppendAllText(_logFileName, logLine);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
             }
 
@@ -99,7 +95,7 @@ namespace SystemMonitorAgent
                     eventLog.WriteEntry(message, isError? EventLogEntryType.Error: EventLogEntryType.Information);
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // больше писать некуда.
             }
@@ -179,13 +175,13 @@ namespace SystemMonitorAgent
     {
         private readonly AppSettings _settings;
         private readonly Logger _logger;
-        private readonly DataSender _poster;
+        private readonly DataSender _sender;
 
-        public SystemMonitorAgent(AppSettings settings, Logger logger, DataSender poster)
+        public SystemMonitorAgent(AppSettings settings, Logger logger, DataSender sender)
         {
             _settings = settings;
             _logger = logger;
-            _poster = poster;
+            _sender = sender;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -203,28 +199,35 @@ namespace SystemMonitorAgent
             {
                 while (!stoppingToken.IsCancellationRequested)
                 {
-                    var sysInfo = new SysInfo
+                    try
                     {
-                        hostname = Environment.MachineName,
-                        ip = GetIpAddresses(),
-                        version = GetWindowsVersion(),
-                        uptime = GetUptime(),
-                        cpu = await collector.GetCpuUsagePerCore(),
-                        totalcpu = await collector.GetTotalCpuUsage(),
-                        ram = GetRamUsage(),
-                        free_space_gb = GetDisksFreeSpace(),
-                        timestamp = DateTime.Now
-                    };
-                    (Dictionary<string, bool> RequiredProcesses, List<string> AllProcesses) = CheckProcesses(processes2Monitor);
-                    sysInfo.all_processes = AllProcesses;
-                    sysInfo.monitored_processes = RequiredProcesses;
+                        var sysInfo = new SysInfo
+                        {
+                            hostname = Environment.MachineName,
+                            ip = GetIpAddresses(),
+                            version = GetWindowsVersion(),
+                            uptime = GetUptime(),
+                            cpu = await collector.GetCpuUsagePerCore(),
+                            totalcpu = await collector.GetTotalCpuUsage(),
+                            ram = GetRamUsage(),
+                            free_space_gb = GetDisksFreeSpace(),
+                            timestamp = DateTime.Now
+                        };
+                        (Dictionary<string, bool> RequiredProcesses, List<string> AllProcesses) = CheckProcesses(processes2Monitor);
+                        sysInfo.all_processes = AllProcesses;
+                        sysInfo.monitored_processes = RequiredProcesses;
 
-                    var json = JsonSerializer.Serialize(sysInfo, new JsonSerializerOptions
+                        var json = JsonSerializer.Serialize(sysInfo, new JsonSerializerOptions
+                        {
+                            WriteIndented = true
+                        });
+                        //_logger.Log(json);
+                        await _sender.SendDataAsync(json);
+                    }
+                    catch (Exception ex)
                     {
-                        WriteIndented = true
-                    });
-                    //_logger.Log(json);
-                    _poster.SendDataAsync(json);
+                        _logger.Log($"Ошибка при получении данных: {ex.Message}", true);
+                    }
 
                     await Task.Delay(TimeSpan.FromSeconds(_settings.Interval), stoppingToken);
                 }
