@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="TestAPI/TestAPI.csproj" />
+  <Project Path="SystemMonitorAgent/SystemMonitorAgent.csproj" />
+</Solution>
