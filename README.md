@@ -118,7 +118,7 @@ json
   "ram": {
     "total_mb": 24486,
     "used_mb": 17554,
-    "percentage": 0
+    "percentage": 71.68995
   },
   "free_space_gb": {
     "C:": 18,
